@@ -15,6 +15,7 @@ Use the navigation to the left to read about the available resources.
 
 ```hcl
 provider "kubernetes" {
+  config_path = "~/.kube/config"
   config_context = "my-context"
 }
 
