@@ -115,7 +115,6 @@ func TestAccKubernetesIngress_InternalKey(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		IDRefreshName:     "kubernetes_ingress.test",
-		IDRefreshIgnore:   []string{"metadata.0.resource_version"},
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKubernetesIngressDestroy,
 		Steps: []resource.TestStep{
@@ -164,7 +163,7 @@ func TestAccKubernetesIngress_WaitForLoadBalancerGoogleCloud(t *testing.T) {
 				Config: testAccKubernetesIngressConfig_waitForLoadBalancer(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckKubernetesIngressExists("kubernetes_ingress.test", &conf),
-					resource.TestCheckResourceAttrSet("kubernetes_ingress.test", "load_balancer_ingress.0.ip"),
+					resource.TestCheckResourceAttrSet("kubernetes_ingress.test", "status.0.l.0.ip"),
 				),
 			},
 		},
