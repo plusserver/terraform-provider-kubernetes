@@ -79,16 +79,17 @@ func Provider() *schema.Provider {
 					"~/.kube/config"),
 				Description: "Path to the kube config file, defaults to ~/.kube/config",
 			},
-			"kubeconfig_str_enable": {
+			"kubeconfig_enable": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("KUBECONFIG_STR_ENABLE", false),
+				DefaultFunc: schema.EnvDefaultFunc("KUBECONFIG_ENABLE", false),
 				Description: "Enables creation of a kubeconfig file from a string input",
 			},
-			"kubeconfig_str": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("KUBECONFIG_STR", ""),
+			"kubeconfig": {
+				Type:     schema.TypeString,
+				Optional: true,
+				//TODO: Overlaps with env variable from config_path
+				DefaultFunc: schema.EnvDefaultFunc("KUBECONFIG_CONTENT", ""),
 				Description: "Actual kubeconfig data as a string",
 			},
 			"config_context": {
@@ -283,7 +284,7 @@ func initializeConfiguration(d *schema.ResourceData) (*restclient.Config, error)
 	overrides := &clientcmd.ConfigOverrides{}
 	loader := &clientcmd.ClientConfigLoadingRules{}
 
-	if d.Get("kubeconfig_str_enable").(bool) {
+	if d.Get("kubeconfig_enable").(bool) {
 		log.Printf("[DEBUG] Creating kubeconfig from str input")
 		if configPath, ok := d.GetOk("config_path"); ok && configPath.(string) != "" {
 			path, err := homedir.Expand(configPath.(string))
@@ -297,9 +298,9 @@ func initializeConfiguration(d *schema.ResourceData) (*restclient.Config, error)
 			}
 			defer kubeconfig.Close()
 
-			data, ok := d.GetOk("kubeconfig_str")
+			data, ok := d.GetOk("kubeconfig")
 			if !ok || data.(string) == "" {
-				log.Printf("[ERROR] Error retrieving kubeconfig_str")
+				log.Printf("[ERROR] Error retrieving kubeconfig")
 				return nil, nil
 			}
 			_, _ = kubeconfig.WriteString(data.(string))
@@ -311,7 +312,7 @@ func initializeConfiguration(d *schema.ResourceData) (*restclient.Config, error)
 		}
 	}
 
-	if d.Get("load_config_file").(bool) && !d.Get("kubeconfig_str_enable").(bool) {
+	if d.Get("load_config_file").(bool) && !d.Get("kubeconfig_enable").(bool) {
 		log.Printf("[DEBUG] Trying to load configuration from file")
 		if configPath, ok := d.GetOk("config_path"); ok && configPath.(string) != "" {
 			path, err := homedir.Expand(configPath.(string))
