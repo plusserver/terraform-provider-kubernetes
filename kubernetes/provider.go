@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -75,6 +76,12 @@ func Provider() *schema.Provider {
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Optional:    true,
 				Description: "A list of paths to kube config files. Can be set with KUBE_CONFIG_PATHS environment variable.",
+			},
+			"kubeconfig": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				DefaultFunc:   schema.EnvDefaultFunc("KUBECONFIG", nil),
+				ConflictsWith: []string{"config_paths"},
 			},
 			"config_path": {
 				Type:          schema.TypeString,
@@ -274,16 +281,48 @@ func initializeConfiguration(d *schema.ResourceData) (*restclient.Config, error)
 
 	configPaths := []string{}
 
-	if v, ok := d.Get("config_path").(string); ok && v != "" {
-		configPaths = []string{v}
-	} else if v, ok := d.Get("config_paths").([]interface{}); ok && len(v) > 0 {
-		for _, p := range v {
-			configPaths = append(configPaths, p.(string))
+	if kubeconfig, ok := d.Get("kubeconfig").(string); ok && kubeconfig != "" {
+		if configPath, ok := d.Get("config_path").(string); ok && configPath != "" {
+			kubeconfigFilePath, err := homedir.Expand(configPath)
+			if err != nil {
+				log.Printf("[ERROR] Error expanding path: %s", configPath)
+				return nil, err
+			}
+			log.Printf("[DEBUG] Creating kubeconfig file file at: %s", kubeconfigFilePath)
+			kubeconfigFile, err := os.Create(kubeconfigFilePath)
+			if err != nil {
+				log.Printf("[ERROR] Error creating kubeconfig file at %s", kubeconfigFilePath)
+				return nil, err
+			}
+			if err := os.Chmod(kubeconfigFilePath, 0640); err != nil {
+				log.Printf("[ERROR] Error setting permissions on kubeconfig file at %s", kubeconfigFilePath)
+				return nil, err
+			}
+			defer kubeconfigFile.Close()
+			_, err = kubeconfigFile.WriteString(kubeconfig)
+			if err != nil {
+				log.Printf("[ERROR] Error writing to kubeconfig file at: %s", kubeconfigFilePath)
+				return nil, err
+			}
+
+			log.Printf("[DEBUG] Wrote data to kubeconfig file file at: %s", kubeconfigFilePath)
+			configPaths = []string{configPath}
+		} else {
+			log.Printf("[ERROR] Must set config_path when providing kubeconfig via config str")
+			return nil, errors.New("[ERROR] Must set config_path when providing kubeconfig via config str")
 		}
-	} else if v := os.Getenv("KUBE_CONFIG_PATHS"); v != "" {
-		// NOTE we have to do this here because the schema
-		// does not yet allow you to set a default for a TypeList
-		configPaths = filepath.SplitList(v)
+	} else {
+		if v, ok := d.Get("config_path").(string); ok && v != "" {
+			configPaths = []string{v}
+		} else if v, ok := d.Get("config_paths").([]interface{}); ok && len(v) > 0 {
+			for _, p := range v {
+				configPaths = append(configPaths, p.(string))
+			}
+		} else if v := os.Getenv("KUBE_CONFIG_PATHS"); v != "" {
+			// NOTE we have to do this here because the schema
+			// does not yet allow you to set a default for a TypeList
+			configPaths = filepath.SplitList(v)
+		}
 	}
 
 	if len(configPaths) > 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,6 +100,26 @@ func TestProvider_configure_paths(t *testing.T) {
 		"test-fixtures/kube-config.yaml",
 		"test-fixtures/kube-config-secondary.yaml",
 	}, string(os.PathListSeparator)))
+	os.Setenv("KUBE_CTX", "oidc")
+
+	rc := terraform.NewResourceConfigRaw(map[string]interface{}{})
+	p := Provider()
+	diags := p.Configure(ctx, rc)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+}
+
+func TestProvider_kubeconfig(t *testing.T) {
+	ctx := context.TODO()
+	resetEnv := unsetEnv(t)
+	defer resetEnv()
+	kubeconfig, err := ioutil.ReadFile("test-fixtures/kube-config.yaml")
+	if err != nil {
+		t.Fatalf("Could not read kube config file at: %s", "test-fixtures/kube-config.yaml")
+	}
+	os.Setenv("KUBECONFIG", string(kubeconfig))
+	os.Setenv("KUBE_CONFIG_PATH", "/tmp/test_kubeconfig.yml")
 	os.Setenv("KUBE_CTX", "oidc")
 
 	rc := terraform.NewResourceConfigRaw(map[string]interface{}{})
